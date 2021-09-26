@@ -43,6 +43,7 @@ module Streamly.Internal.Data.Array
 
     -- * Random Access
     , getIndexUnsafe
+    , overlay
     )
 where
 
@@ -65,6 +66,7 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import Data.Primitive.Array hiding (fromList, fromListN)
+import Control.Monad.Primitive
 import Prelude hiding (foldr, length, read)
 
 {-# NOINLINE bottomElement #-}
@@ -239,3 +241,14 @@ streamFold f arr = f (toStream arr)
 {-# INLINE getIndexUnsafe #-}
 getIndexUnsafe :: Array a -> Int -> a
 getIndexUnsafe = indexArray
+
+-- | Update multiple indices of an array.
+overlay :: (Monad m, PrimMonad m) =>
+    Array a -> SerialT m (Int, a) -> m (Array a)
+overlay arr m = do
+    marr <- unsafeThawArray arr
+    D.foldlM'
+        (\_ (i, d) -> writeArray marr i d)
+        (return ())
+        (D.fromStreamK (getSerialT m))
+    unsafeFreezeArray marr
