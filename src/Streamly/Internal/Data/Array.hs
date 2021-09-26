@@ -243,12 +243,15 @@ getIndexUnsafe :: Array a -> Int -> a
 getIndexUnsafe = indexArray
 
 -- | Update multiple indices of an array.
-overlay :: (Monad m, PrimMonad m) =>
-    Array a -> SerialT m (Int, a) -> m (Array a)
+overlay :: (PrimMonad m) => Array a -> SerialT m (Int, a) -> m (Array a)
 overlay arr m = do
     marr <- unsafeThawArray arr
+    let limit = length arr
     D.foldlM'
-        (\_ (i, d) -> writeArray marr i d)
+        (\_ (i, d) -> case i < limit && i >= 0 of
+            True -> writeArray marr i d
+            False -> return ()
+        )
         (return ())
         (D.fromStreamK (getSerialT m))
     unsafeFreezeArray marr
