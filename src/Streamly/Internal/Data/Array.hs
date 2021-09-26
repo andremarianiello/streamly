@@ -248,10 +248,7 @@ overlay arr m = do
     marr <- unsafeThawArray arr
     let limit = length arr
     D.foldlM'
-        (\_ (i, d) -> case i < limit && i >= 0 of
-            True -> writeArray marr i d
-            False -> return ()
-        )
+        (\_ (i, d) -> when (i < limit && i >= 0) $ writeArray marr i d)
         (return ())
         (D.fromStreamK (getSerialT m))
     unsafeFreezeArray marr
