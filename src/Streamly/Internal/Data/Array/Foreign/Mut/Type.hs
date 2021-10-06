@@ -112,6 +112,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , memcpy
     , memcmp
     , c_memchr
+    , strip
     )
 where
 
@@ -128,7 +129,7 @@ import Data.Semigroup (Semigroup(..))
 #endif
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
-import Foreign.ForeignPtr (touchForeignPtr, castForeignPtr)
+import Foreign.ForeignPtr (touchForeignPtr, castForeignPtr, newForeignPtr_)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
 import Foreign.Storable (Storable(..))
@@ -149,6 +150,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import Streamly.Internal.System.IO
     (defaultChunkSize, mkChunkSize, unsafeInlineIO)
+import System.IO.Unsafe (unsafePerformIO)    
 
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
@@ -158,6 +160,7 @@ import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Foreign.Malloc as Malloc
+
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
 
@@ -1596,4 +1599,60 @@ cmp arr1 arr2 =
 -- just a no op.
 instance NFData (Array a) where
     {-# INLINE rnf #-}
-    rnf Array {} = ()
+    rnf Array {} = ()   
+
+#ifdef DEVBUILD
+-- Definitions using the Storable constraint from the Array type. These are to
+-- make the Foldable instance possible though it is much slower (7x slower).
+--
+{-# INLINE_NORMAL toStreamD_ #-}
+toStreamD_ :: forall m a. MonadIO m => Int -> Array a -> D.Stream m a
+toStreamD_ size Array{..} =
+    let p = unsafeForeignPtrToPtr aStart
+    in D.Stream step p
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ p | p == aEnd = return D.Stop
+    step _ p = do
+        x <- liftIO $ do
+                    r <- peek p
+                    touchForeignPtr aStart
+                    return r
+        return $ D.Yield x (p `plusPtr` size)
+#endif
+
+strip :: forall a. (Storable a) =>
+    (a -> Bool) -> Array a -> Array a
+strip eq arr@Array{..} =
+    let p = unsafeForeignPtrToPtr aStart
+        q = aEnd
+        len = length arr
+        st = getStart p len
+        end =
+            if st == q
+            then q
+            else getLast $ q `plusPtr` negate (sizeOf (undefined :: a))
+    in go st end
+
+    where
+
+    getStart p i = unsafePerformIO $ do
+        r <- peek p
+        if eq r && i > 0
+        then return $ getStart (p `plusPtr` sizeOf (undefined :: a)) (i - 1)
+        else return p
+
+    getLast p = unsafePerformIO $ do
+        r <- peek p
+        if eq r
+        then return $ getLast (p `plusPtr` negate (sizeOf (undefined :: a)))
+        else return (p `plusPtr` sizeOf (undefined :: a))
+
+    go p q = unsafePerformIO $ do
+        if p == q
+        then newArray 0
+        else do
+            fp <- newForeignPtr_ p
+            return arr {aStart = fp, aEnd = q, aBound = q}
