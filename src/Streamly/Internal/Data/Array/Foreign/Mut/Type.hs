@@ -150,7 +150,6 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import Streamly.Internal.System.IO
     (defaultChunkSize, mkChunkSize, unsafeInlineIO)
-import System.IO.Unsafe (unsafePerformIO)    
 
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
@@ -1623,36 +1622,36 @@ toStreamD_ size Array{..} =
         return $ D.Yield x (p `plusPtr` size)
 #endif
 
-strip :: forall a. (Storable a) =>
-    (a -> Bool) -> Array a -> Array a
+strip :: forall a m. (Storable a, MonadIO m) =>
+    (a -> Bool) -> Array a -> m (Array a)
 strip eq arr@Array{..} =
     let p = unsafeForeignPtrToPtr aStart
         q = aEnd
         len = length arr
         st = getStart p len
-        end =
-            if st == q
-            then q
+        end = do
+            st' <- st
+            if st' == q
+            then return q
             else getLast $ q `plusPtr` negate (sizeOf (undefined :: a))
     in go st end
 
     where
 
-    getStart p i = unsafePerformIO $ do
+    getStart p i = do
         r <- peek p
         if eq r && i > 0
-        then return $ getStart (p `plusPtr` sizeOf (undefined :: a)) (i - 1)
+        then getStart (p `plusPtr` sizeOf (undefined :: a)) (i - 1)
         else return p
 
-    getLast p = unsafePerformIO $ do
+    getLast p = do
         r <- peek p
         if eq r
-        then return $ getLast (p `plusPtr` negate (sizeOf (undefined :: a)))
+        then getLast (p `plusPtr` negate (sizeOf (undefined :: a)))
         else return (p `plusPtr` sizeOf (undefined :: a))
 
-    go p q = unsafePerformIO $ do
-        if p == q
-        then newArray 0
-        else do
-            fp <- newForeignPtr_ p
-            return arr {aStart = fp, aEnd = q, aBound = q}
+    go p q = liftIO $ do
+        p' <- p
+        q' <- q
+        fp <- newForeignPtr_ p'
+        return arr {aStart = fp, aEnd = q', aBound = q'}
