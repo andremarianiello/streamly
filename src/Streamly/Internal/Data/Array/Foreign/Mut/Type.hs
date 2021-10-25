@@ -1598,29 +1598,7 @@ cmp arr1 arr2 =
 -- just a no op.
 instance NFData (Array a) where
     {-# INLINE rnf #-}
-    rnf Array {} = ()   
-
-#ifdef DEVBUILD
--- Definitions using the Storable constraint from the Array type. These are to
--- make the Foldable instance possible though it is much slower (7x slower).
---
-{-# INLINE_NORMAL toStreamD_ #-}
-toStreamD_ :: forall m a. MonadIO m => Int -> Array a -> D.Stream m a
-toStreamD_ size Array{..} =
-    let p = unsafeForeignPtrToPtr aStart
-    in D.Stream step p
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step _ p | p == aEnd = return D.Stop
-    step _ p = do
-        x <- liftIO $ do
-                    r <- peek p
-                    touchForeignPtr aStart
-                    return r
-        return $ D.Yield x (p `plusPtr` size)
-#endif
+    rnf Array {} = ()
 
 strip :: forall a m. (Storable a, MonadIO m) =>
     (a -> Bool) -> Array a -> m (Array a)
