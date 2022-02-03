@@ -120,7 +120,6 @@ module Streamly.Internal.Data.Stream.StreamK
     , filter
     , take
     , takeWhile
-    , takeEndBy
     , drop
     , dropWhile
 
@@ -639,18 +638,6 @@ takeWhile p = go
                        | otherwise = stp
          in foldStream st yieldk single stp m1
 
-{-# INLINE takeEndBy #-}
-takeEndBy :: (a -> Bool) -> Stream m a -> Stream m a
-takeEndBy p = go Nothing
-    where
-    go Nothing m1 = mkStream $ \st yld sng stp ->
-        let single a   | not $ p a = sng a
-                       | otherwise = stp
-            yieldk a r | not $ p a = yld a (go Nothing r)
-                       | otherwise = yld a (go (Just a) r)
-         in foldStream st yieldk single stp m1
-
-    go _ _ = mkStream $ \_ _ _ stp -> stp
 
 {-# INLINE drop #-}
 drop :: Int -> Stream m a -> Stream m a

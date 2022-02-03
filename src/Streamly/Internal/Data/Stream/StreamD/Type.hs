@@ -645,22 +645,22 @@ takeWhile f = takeWhileM (return . f)
 
 {-# INLINE_NORMAL takeEndByM #-}
 takeEndByM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
-takeEndByM f (Stream step state) = Stream step' (state, Nothing)
+takeEndByM f (Stream step state) = Stream step' (Just state)
   where
     {-# INLINE_LATE step' #-}
-    step' gst (st, Nothing) = do
+    step' gst (Just st) = do
         r <- step gst st
         case r of
             Yield x s -> do
                 b <- f x
                 return $
                     if not b
-                    then Yield x (s, Nothing)
-                    else Yield x (s, Just x)
-            Skip s -> return $ Skip (s, Nothing)
+                    then Yield x (Just s)
+                    else Yield x Nothing
+            Skip s -> return $ Skip (Just s)
             Stop   -> return Stop
 
-    step' _ (_, _) = return Stop
+    step' _ _ = return Stop
 
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
