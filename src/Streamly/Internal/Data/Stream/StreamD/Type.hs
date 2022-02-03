@@ -660,7 +660,7 @@ takeEndByM f (Stream step state) = Stream step' (Just state)
             Skip s -> return $ Skip (Just s)
             Stop   -> return Stop
 
-    step' _ _ = return Stop
+    step' _ Nothing = return Stop
 
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m a

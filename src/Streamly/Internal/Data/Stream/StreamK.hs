@@ -638,7 +638,6 @@ takeWhile p = go
                        | otherwise = stp
          in foldStream st yieldk single stp m1
 
-
 {-# INLINE drop #-}
 drop :: Int -> Stream m a -> Stream m a
 drop n m = unShare (go n m)
