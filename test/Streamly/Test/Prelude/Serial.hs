@@ -47,6 +47,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream.IsStream as IS
+import qualified Streamly.Internal.Data.Stream.IsStream.Common as IS
 import qualified Streamly.Data.Array.Foreign as A
 
 import Streamly.Internal.Data.Time.Units
@@ -508,6 +509,14 @@ sortBy = forAll (listOf (chooseInt (0, max_length))) $ \lst -> monadicIO $ do
         s2 <- run $ S.toList $ IS.sortBy compare $ S.fromList lst
         assert $ s1 == s2
 
+
+takeEndBy :: Property
+takeEndBy = forAll (listOf (chooseInt (0, max_length))) $ \lst -> monadicIO $ do
+    let (s1, s3) = span (<= 200) lst
+    let s4 = if null s3 then [] else [head s3]
+    s2 <- run $ S.toList $ IS.takeEndBy (> 200) $ S.fromList lst
+    assert $ s1 ++ s4 == s2
+
 moduleName :: String
 moduleName = "Prelude.Serial"
 
@@ -689,6 +698,7 @@ main = hspec
     describe "Stream serial elimination operations" $ do
         serialOps    $ eliminationOpsOrdered S.fromFoldable "serially"
         serialOps    $ eliminationOpsOrdered folded "serially folded"
+        prop "takeEndBy" foldIterateM
 
     describe "Tests for S.groupsBy" groupingOps
 
