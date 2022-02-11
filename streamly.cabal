@@ -241,6 +241,7 @@ common compile-options
                       -Wincomplete-uni-patterns
                       -Wredundant-constraints
                       -Wnoncanonical-monad-instances
+                      -Wmissing-export-lists
                       -Rghc-timing
 
     if flag(has-llvm)
@@ -249,6 +250,7 @@ common compile-options
     if flag(dev)
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
+                      -Wmissing-export-lists 
 
     if flag(limit-build-mem)
         ghc-options: +RTS -M1000M -RTS

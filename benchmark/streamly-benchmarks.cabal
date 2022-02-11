@@ -84,6 +84,7 @@ common compile-options
                       -Wredundant-constraints
                       -Wnoncanonical-monad-instances
                       -Rghc-timing
+                      -Wmissing-export-lists
 
     if flag(has-llvm)
       ghc-options: -fllvm
@@ -91,6 +92,7 @@ common compile-options
     if flag(dev)
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
+                      -Wmissing-export-lists 
 
     if flag(dev) || flag(debug)
       ghc-options:    -fno-ignore-asserts
