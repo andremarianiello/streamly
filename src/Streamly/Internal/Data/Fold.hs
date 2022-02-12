@@ -1791,6 +1791,14 @@ toStream = fmap SerialT toStreamK
 toStreamRev :: Monad m => Fold m a (SerialT n a)
 toStreamRev = fmap SerialT toStreamKRev
 
+-- XXX Investigate performance
+--
+-- Given the input stream is of size n and the unfolded stream is of size n,
+-- this should be as performant as running the fold on a stream of size n * m.
+--
+-- I've tried making mutually recursive function with an explicit loop breaker
+-- but that resulted in the same performance
+--
 -- | This has the effect of concatenating the incoming stream using the given
 -- unfold and folding the concatenated stream using the given fold.
 --
@@ -1806,26 +1814,16 @@ unfoldMany (Unfold istep inject) (Fold ostep oinitial oextract) =
 
     where
 
-    stepF o i b = do
-        fres <- ostep o b
-        case fres of
-            Partial o1 -> stepU o1 i
-            Done c -> return $ Done c
-
-    -- XXX This is like an explicit loop breaker
-    stepU_ o i = do
-        res <- istep i
-        case res of
-            StreamD.Yield b i1 -> stepF o i1 b
-            StreamD.Skip i1    -> stepU o i1
-            StreamD.Stop       -> return $ Partial o
-
     {-# INLINE stepU #-}
     stepU o i = do
         res <- istep i
         case res of
-            StreamD.Yield b i1 -> stepF o i1 b
-            StreamD.Skip i1    -> stepU_ o i1
+            StreamD.Yield b i1 -> do
+                fres <- ostep o b
+                case fres of
+                    Partial o1 -> stepU o1 i1 -- Add an explicit loop breaker?
+                    Done c -> return $ Done c
+            StreamD.Skip i1    -> stepU o i1
             StreamD.Stop       -> return $ Partial o
 
     {-# INLINE_LATE step #-}

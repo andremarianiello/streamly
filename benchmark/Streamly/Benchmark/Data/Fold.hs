@@ -20,6 +20,7 @@ import Streamly.Internal.Data.Fold (Fold(..))
 
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Sink as Sink
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
@@ -211,6 +212,16 @@ unzipWithMinM = do
     IP.fold (FL.unzipWithMinM f FL.sum FL.length)
 
 -------------------------------------------------------------------------------
+-- Nested
+-------------------------------------------------------------------------------
+
+unfoldMany :: Int -> Benchmarkable
+unfoldMany val =
+    nfIO
+        $ IP.fold (FL.unfoldMany (Unfold.replicateM val) FL.drain)
+        $ IP.fromPure (randomRIO (1, 1 :: Int))
+
+-------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
 
@@ -338,6 +349,7 @@ o_1_space_serial_composition value =
                   $ demuxDefaultWith fn mp
             , benchIOSink value "demuxWith [sum, length]" $ demuxWith fn mp
             , benchIOSink value "classifyWith sum" $ classifyWith (fst . fn)
+            , bench "unfoldMany" $ unfoldMany value
             ]
       ]
 
