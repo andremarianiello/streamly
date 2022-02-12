@@ -220,6 +220,7 @@ module Streamly.Internal.Data.Fold
     , chunksBetween
 
     -- ** Nesting
+    , unfoldMany
     , concatSequence
     , concatMap
 
@@ -241,6 +242,8 @@ module Streamly.Internal.Data.Fold
     )
 where
 
+#include "inline.hs"
+
 import Data.Bifunctor (first)
 import Data.Either (isLeft, isRight)
 import Data.Functor.Identity (Identity(..))
@@ -254,11 +257,13 @@ import Streamly.Internal.BaseCompat (fromLeft, fromRight)
 import Streamly.Internal.Data.Either.Strict
     (Either'(..), fromLeft', fromRight', isLeft', isRight')
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
 -- import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
 import qualified Prelude
 
@@ -1785,3 +1790,43 @@ toStream = fmap SerialT toStreamK
 {-# INLINE toStreamRev #-}
 toStreamRev :: Monad m => Fold m a (SerialT n a)
 toStreamRev = fmap SerialT toStreamKRev
+
+-- | This has the effect of concatenating the incoming stream using the given
+-- unfold and folding the concatenated stream using the given fold.
+--
+-- @
+-- StreamD.fold (unfoldMany unf fld) strm = StreamD.fold fld (StreamD.unfoldMany unf strm)
+-- @
+--
+-- /Pre-release/
+{-# INLINE unfoldMany #-}
+unfoldMany :: Monad m => Unfold m a b -> Fold m b c -> Fold m a c
+unfoldMany (Unfold istep inject) (Fold ostep oinitial oextract) =
+    Fold step oinitial oextract
+
+    where
+
+    stepF o i b = do
+        fres <- ostep o b
+        case fres of
+            Partial o1 -> stepU o1 i
+            Done c -> return $ Done c
+
+    -- XXX This is like an explicit loop breaker
+    stepU_ o i = do
+        res <- istep i
+        case res of
+            StreamD.Yield b i1 -> stepF o i1 b
+            StreamD.Skip i1    -> stepU o i1
+            StreamD.Stop       -> return $ Partial o
+
+    {-# INLINE stepU #-}
+    stepU o i = do
+        res <- istep i
+        case res of
+            StreamD.Yield b i1 -> stepF o i1 b
+            StreamD.Skip i1    -> stepU_ o i1
+            StreamD.Stop       -> return $ Partial o
+
+    {-# INLINE_LATE step #-}
+    step o a = inject a >>= stepU o
